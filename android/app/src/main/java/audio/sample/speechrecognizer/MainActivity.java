@@ -13,6 +13,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ListView;
+import android.widget.TextView;
 
 import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
 
@@ -41,7 +42,7 @@ public class MainActivity extends AppCompatActivity {
 
     // UI elements.
     private static final int REQUEST_RECORD_AUDIO = 13;
-    private Button quitButton;
+
     private ListView labelsListView;
     private static final String LOG_TAG = MainActivity.class.getSimpleName();
 
@@ -54,14 +55,36 @@ public class MainActivity extends AppCompatActivity {
     private Thread recognitionThread;
     private final ReentrantLock recordingBufferLock = new ReentrantLock();
     private TensorFlowInferenceInterface inferenceInterface;
-    private List<String> labels = new ArrayList<String>();
+    private List<String> labels = new ArrayList<>();
     private List<String> displayedLabels = new ArrayList<>();
     private RecognizeCommands recognizeCommands = null;
+    private TextView detectedString;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        final Button buttonStart = (Button) findViewById(R.id.start);
+        final Button buttonStop = (Button) findViewById(R.id.stop);
+        detectedString = (TextView)findViewById(R.id.detectedString);
+
+        buttonStart.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startRecording();
+                startRecognition();
+            }
+        });
+
+        buttonStop.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stopRecognition();
+                ;
+            }
+        });
+
 
         // Load the labels for the model, but only display those that don't start
         // with an underscore.
@@ -97,8 +120,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Start the recording and recognition threads.
         requestMicrophonePermission();
-        startRecording();
-        startRecognition();
+
 
     }
 
@@ -115,8 +137,8 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_RECORD_AUDIO
                 && grantResults.length > 0
                 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startRecording();
-            startRecognition();
+            //startRecording();
+            //startRecognition();
         }
     }
 
@@ -220,9 +242,11 @@ public class MainActivity extends AppCompatActivity {
         short[] inputBuffer = new short[RECORDING_LENGTH];
         float[] floatInputBuffer = new float[RECORDING_LENGTH];
         float[] outputScores = new float[labels.size()];
-        String[] outputScoresNames = new String[] {OUTPUT_SCORES_NAME};
-        int[] sampleRateList = new int[] {SAMPLE_RATE};
+        String[] outputScoresNames = new String[]{OUTPUT_SCORES_NAME};
+        int[] sampleRateList = new int[]{SAMPLE_RATE};
 
+
+        final StringBuilder completeRecognition= new StringBuilder();
         // Loop, grabbing recorded data and running the recognition model on it.
         while (shouldContinueRecognition) {
             // The recording thread places data in this round-robin buffer, so lock to
@@ -255,8 +279,17 @@ public class MainActivity extends AppCompatActivity {
             long currentTime = System.currentTimeMillis();
             final RecognizeCommands.RecognitionResult result =
                     recognizeCommands.processLatestResults(outputScores, currentTime);
+            Log.d("MainActivity", "recognize: "+ result.foundCommand);
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    String command = result.foundCommand;
+                    completeRecognition.append(command);
+                    detectedString.setText(completeRecognition.toString());
+                }
+            });
 
-            runOnUiThread(
+       /*     runOnUiThread(
                     new Runnable() {
                         @Override
                         public void run() {
@@ -282,7 +315,7 @@ public class MainActivity extends AppCompatActivity {
                                 colorAnimation.start();
                             }
                         }
-                    });
+                    });*/
             try {
                 // We don't need to run too frequently, so snooze for a bit.
                 Thread.sleep(MINIMUM_TIME_BETWEEN_SAMPLES_MS);
@@ -295,4 +328,4 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    }
+}
